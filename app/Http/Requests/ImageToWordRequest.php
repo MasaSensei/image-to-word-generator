@@ -20,6 +20,8 @@ class ImageToWordRequest extends FormRequest
         return [
             'images' => ['required', 'array', 'min:1', 'max:' . $maxImages],
             'images.*' => ['required', 'image', 'mimes:' . $mimes, 'max:' . $maxSize],
+            'descriptions' => ['nullable', 'array'],
+            'descriptions.*' => ['nullable', 'string', 'max:150'],
         ];
     }
 

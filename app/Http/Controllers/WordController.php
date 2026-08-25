@@ -23,7 +23,8 @@ class WordController extends Controller
     {
         try {
             $files = $request->file('images');
-            $generatedFilePath = $wordService->generate($files);
+            $descriptions = $request->input('descriptions', []);
+            $generatedFilePath = $wordService->generate($files, $descriptions);
 
             // Ambil atau buat owner_token dari cookie
             $ownerToken = $request->cookie('owner_token');

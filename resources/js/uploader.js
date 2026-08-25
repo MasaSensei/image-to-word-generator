@@ -13,7 +13,6 @@ document.addEventListener("alpine:init", () => {
                     Sortable.create(this.$refs.gallery, {
                         animation: 200,
                         ghostClass: "opacity-40",
-                        dragClass: "ring-2",
                         onEnd: (e) => {
                             const item = this.files.splice(e.oldIndex, 1)[0];
                             this.files.splice(e.newIndex, 0, item);
@@ -26,7 +25,6 @@ document.addEventListener("alpine:init", () => {
         handleDrop(e) {
             this.addFiles(e.dataTransfer.files);
         },
-
         handleFiles(e) {
             this.addFiles(e.target.files);
             e.target.value = "";
@@ -42,20 +40,13 @@ document.addEventListener("alpine:init", () => {
             }
 
             filesArray.forEach((file) => {
-                if (!file.type.match("image.*")) {
-                    this.errorMessage =
-                        "Format tidak valid. Gunakan ekstensi korporat standar (JPG, PNG).";
-                    return;
-                }
-                if (file.size > this.maxSize) {
-                    this.errorMessage = `Ukuran dokumen ${file.name} melebihi batas yang diizinkan.`;
-                    return;
-                }
+                if (!file.type.match("image.*")) return;
 
                 this.files.push({
                     id: Math.random().toString(36).substr(2, 9),
                     raw: file,
                     preview: URL.createObjectURL(file),
+                    description: "", // Tambahkan variabel default untuk input teks
                 });
             });
         },
@@ -67,13 +58,17 @@ document.addEventListener("alpine:init", () => {
 
         async generateWord() {
             if (this.files.length === 0) return;
-
             this.isGenerating = true;
             this.errorMessage = "";
 
             let formData = new FormData();
             this.files.forEach((file, index) => {
                 formData.append(`images[${index}]`, file.raw);
+                // Batasi keamanan maksimal deskripsi 150 char di sisi JS sebelum dikirim
+                const safeDesc = file.description
+                    ? file.description.substring(0, 150)
+                    : "";
+                formData.append(`descriptions[${index}]`, safeDesc);
             });
 
             try {
@@ -84,30 +79,17 @@ document.addEventListener("alpine:init", () => {
                         "X-CSRF-TOKEN":
                             document
                                 .querySelector('meta[name="csrf-token"]')
-                                ?.getAttribute("content") ||
-                            "{{ csrf_token() }}",
+                                ?.getAttribute("content") || "",
                     },
                 });
 
-                // Cek apakah response berupa error JSON
-                const contentType = response.headers.get("content-type");
                 if (!response.ok) {
-                    if (
-                        contentType &&
-                        contentType.includes("application/json")
-                    ) {
-                        const errorData = await response.json();
-                        throw new Error(
-                            errorData.message || "Gagal memproses dokumen.",
-                        );
-                    } else {
-                        throw new Error(
-                            "Terjadi kesalahan server saat men-generate dokumen.",
-                        );
-                    }
+                    const errorData = await response.json().catch(() => null);
+                    throw new Error(
+                        errorData?.message || "Gagal memproses dokumen.",
+                    );
                 }
 
-                // Jika sukses, download file blob
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement("a");

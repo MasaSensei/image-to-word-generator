@@ -9,87 +9,124 @@ use PhpOffice\PhpWord\IOFactory;
 
 class WordGeneratorService
 {
-    public function generate(array $uploadedFiles): string
+    public function generate(array $uploadedFiles, array $descriptions = []): string
     {
         $phpWord = new PhpWord();
         $phpWord->setDefaultParagraphStyle(['align' => 'center']);
 
+        // Margin sedikit diperkecil agar ruang lebih lega untuk 2 gambar
         $section = $phpWord->addSection([
-            'marginTop' => 600,
-            'marginBottom' => 600,
-            'marginLeft' => 600,
-            'marginRight' => 600,
+            'marginTop' => 700,
+            'marginBottom' => 700,
+            'marginLeft' => 800,
+            'marginRight' => 800,
         ]);
 
-        $imagesPerPage = config('image_to_word.word.images_per_page');
+        $imageChunks = array_chunk($uploadedFiles, 2);
 
-        // Memecah array gambar menjadi kelompok (2 gambar per halaman)
-        $imageChunks = array_chunk($uploadedFiles, $imagesPerPage);
+        foreach ($imageChunks as $chunkIndex => $chunk) {
+            foreach ($chunk as $fileIndex => $file) {
+                $globalIndex = ($chunkIndex * 2) + $fileIndex;
+                $ext = strtolower($file->getClientOriginalExtension());
 
-        foreach ($imageChunks as $index => $chunk) {
-            foreach ($chunk as $file) {
-                // Simpan file ke storage publik sementara dengan nama unik
-                $tempName = 'temp_' . Str::uuid() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('temp_images', $tempName);
-                $absolutePath = Storage::path($path);
+                $tempName = 'temp_orig_' . Str::uuid() . '.' . $ext;
+                $originalPath = Storage::path($file->storeAs('temp_images', $tempName));
 
-                // Hitung dimensi dengan mempertahankan Aspect Ratio
-                $dimensions = $this->calculateDimensions($absolutePath);
+                // CROP gambar ke rasio 4:3
+                $croppedPath = $this->cropTo4x3($originalPath, $ext);
 
-                // Tambahkan gambar ke dokumen Word
-                $section->addImage($absolutePath, [
-                    'width' => $dimensions['width'],
-                    'height' => $dimensions['height'],
+                // 1. TULIS DESKRIPSI (DI ATAS GAMBAR)
+                $descText = $descriptions[$globalIndex] ?? '';
+                if (!empty(trim($descText))) {
+                    $section->addText(
+                        trim($descText),
+                        ['size' => 11, 'color' => '333333', 'bold' => true],
+                        [
+                            'spaceBefore' => ($fileIndex > 0 ? 500 : 0), // Beri jarak atas jika ini gambar ke-2
+                            'spaceAfter' => 100
+                        ]
+                    );
+                } else {
+                    // Jika tidak ada deskripsi tapi ini gambar ke-2, beri jarak kosong agar tidak menempel
+                    if ($fileIndex > 0) {
+                        $section->addTextBreak(1, ['size' => 12]);
+                    }
+                }
+
+                // 2. MASUKKAN GAMBAR (DI BAWAH DESKRIPSI)
+                $section->addImage($croppedPath, [
+                    'width' => 450, // Sedikit dikurangi (tetap rasio 4:3) agar tidak memicu auto-pagebreak
+                    'height' => 337,
                     'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER,
                 ]);
-
-                // Beri spasi pemisah antar gambar di halaman yang sama
-                $section->addTextBreak(1);
             }
 
-            // Tambahkan Explicit Page Break jika BUKAN chunk terakhir
-            if ($index < count($imageChunks) - 1) {
+            // Tambahkan Page Break HANYA jika ini bukan halaman (chunk) terakhir
+            if ($chunkIndex < count($imageChunks) - 1) {
                 $section->addPageBreak();
             }
         }
 
-        // Pastikan direktori generated ada
         Storage::makeDirectory('generated');
         $fileName = 'generated/' . Str::uuid() . '.docx';
-        $fullSavePath = Storage::path($fileName);
-
-        // Simpan menggunakan IOFactory Writer Word2007
         $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
-        $objWriter->save($fullSavePath);
+        $objWriter->save(Storage::path($fileName));
 
-        // Bersihkan folder file temporary secara aman
         Storage::deleteDirectory('temp_images');
 
         return $fileName;
     }
 
-    private function calculateDimensions(string $imagePath): array
+    private function cropTo4x3(string $sourcePath, string $extension): string
     {
-        $maxWidth = config('image_to_word.word.image_max_width');
-        $maxHeight = config('image_to_word.word.image_max_height');
+        $info = @getimagesize($sourcePath);
+        if (!$info) return $sourcePath;
 
-        list($originalWidth, $originalHeight) = @getimagesize($imagePath);
+        list($width, $height) = $info;
+        $mime = $info['mime'];
 
-        // Fallback aman jika ukuran gagal dibaca
-        if (!$originalWidth || !$originalHeight) {
-            return ['width' => 200, 'height' => 150];
+        $targetRatio = 4 / 3;
+        $sourceRatio = $width / $height;
+
+        if ($sourceRatio > $targetRatio) {
+            $cropWidth = (int) ($height * $targetRatio);
+            $cropHeight = $height;
+            $x = ($width - $cropWidth) / 2;
+            $y = 0;
+        } else {
+            $cropWidth = $width;
+            $cropHeight = (int) ($width / $targetRatio);
+            $x = 0;
+            $y = ($height - $cropHeight) / 2;
         }
 
-        $ratio = min($maxWidth / $originalWidth, $maxHeight / $originalHeight);
-
-        // Jika ukuran asli lebih kecil dari bounding box, gunakan ukuran asli
-        if ($ratio > 1) {
-            $ratio = 1;
+        switch ($mime) {
+            case 'image/jpeg':
+                $img = imagecreatefromjpeg($sourcePath);
+                break;
+            case 'image/png':
+                $img = imagecreatefrompng($sourcePath);
+                break;
+            default:
+                return $sourcePath;
         }
 
-        return [
-            'width' => (int) round($originalWidth * $ratio),
-            'height' => (int) round($originalHeight * $ratio),
-        ];
+        $cropped = imagecrop($img, ['x' => $x, 'y' => $y, 'width' => $cropWidth, 'height' => $cropHeight]);
+
+        $tempCroppedPath = Storage::path('temp_images/crop_' . Str::uuid() . '.' . $extension);
+
+        if ($cropped !== false) {
+            if ($mime == 'image/png') {
+                imagepng($cropped, $tempCroppedPath);
+            } else {
+                imagejpeg($cropped, $tempCroppedPath, 90);
+            }
+            imagedestroy($cropped);
+            imagedestroy($img);
+            return $tempCroppedPath;
+        }
+
+        imagedestroy($img);
+        return $sourcePath;
     }
 }
