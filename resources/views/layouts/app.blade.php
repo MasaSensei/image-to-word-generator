@@ -58,8 +58,7 @@
 </head>
 
 <body class="bg-paper text-ink font-sans antialiased min-h-screen flex flex-col">
-
-    <!-- Navigation: thin, ink navy, no heavy shadow -->
+    <!-- Navigation -->
     <nav class="bg-ink text-paper">
         <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -72,6 +71,19 @@
             </div>
         </div>
     </nav>
+
+    <!-- Toast container -->
+    <div x-data class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 w-80">
+        <template x-for="toast in $store.toasts.list" :key="toast.id">
+            <div x-transition
+                 class="p-4 rounded-sm shadow-paper border-l-2 text-sm font-medium"
+                 :class="toast.type === 'error'
+                    ? 'bg-brand-50 border-brand-600 text-brand-900'
+                    : 'bg-green-50 border-green-600 text-green-900'">
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
 
     <!-- Main Content -->
     <main class="flex-grow max-w-5xl mx-auto w-full py-12 px-6">

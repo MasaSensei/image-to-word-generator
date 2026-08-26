@@ -39,27 +39,33 @@ class GenerateWordDocumentJob implements ShouldQueue
 
         $job->update(['status' => 'processing']);
 
+        $generatedFilePath = null;
+
         try {
             $generatedFilePath = $wordService->generateFromPaths(
                 $this->storedPaths,
                 $this->descriptions
             );
 
-            $job->update([
-                'status' => 'completed',
-                'file_path' => $generatedFilePath,
-            ]);
-
             $historyService->record(
                 $this->ownerToken,
                 $generatedFilePath,
                 count($this->storedPaths)
             );
+
+            $job->update([
+                'status' => 'completed',
+                'file_path' => $generatedFilePath,
+            ]);
         } catch (\Throwable $e) {
             Log::error(
                 "GenerateWordDocumentJob failed [{$this->jobId}]: "
                 . $e->getMessage()
             );
+
+            if ($generatedFilePath && Storage::exists($generatedFilePath)) {
+                Storage::delete($generatedFilePath);
+            }
 
             $job->update([
                 'status' => 'failed',

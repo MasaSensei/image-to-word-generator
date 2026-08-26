@@ -1,10 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
-    <!-- Inject config dari PHP ke JavaScript -->
     <div x-data="imageUploader({
         maxImages: {{ config('image_to_word.max_images') }},
-        maxSize: {{ config('image_to_word.max_file_size') * 1024 }}
+        maxSize: {{ config('image_to_word.max_file_size') * 1024 }},
+        generateUrl: '{{ route('word.generate') }}',
+        statusUrlBase: '{{ url('/generate/status') }}',
+        historyUrl: '{{ route('word.history') }}',
+        historyPage: {{ isset($histories) && is_object($histories) ? $histories->currentPage() : 1 }}
     })" class="bg-paper-card rounded-sm shadow-paper border border-paper-line">
 
         <div class="px-8 pt-8 pb-6 border-b border-paper-line">
@@ -133,7 +136,7 @@
         </div>
 
         <!-- Document History Section -->
-        <div class="border-t border-paper-line" x-data="{ openHistory: true }">
+        <div class="border-t border-paper-line">
             <div class="flex justify-between items-center px-8 py-5">
                 <h2 class="font-serif text-lg font-semibold text-ink">Document History</h2>
                 <button @click="openHistory = !openHistory"
@@ -143,40 +146,33 @@
             </div>
 
             <div x-show="openHistory" class="px-8 pb-8">
-                @if (isset($histories) && count($histories) > 0)
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="border-b border-ink/20 text-ink-muted text-xs uppercase tracking-wider">
-                                <th class="py-2.5 font-medium">File Name</th>
-                                <th class="py-2.5 font-medium">Image Count</th>
-                                <th class="py-2.5 font-medium">Created At</th>
-                                <th class="py-2.5 font-medium text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-paper-line text-ink-soft">
-                            @foreach ($histories as $history)
-                                <tr class="hover:bg-paper transition">
-                                    <td class="py-3 font-medium text-ink">{{ $history->file_name }}</td>
-                                    <td class="py-3">{{ $history->image_count }} Images</td>
-                                    <td class="py-3 text-ink-muted">{{ $history->created_at->timezone('Asia/Jakarta')->format('d M Y, H:i') }}</td>
-                                    <td class="py-3 text-right">
-                                        <a href="{{ route('history.download', $history->id) }}"
-                                            class="inline-flex items-center text-xs font-medium text-brand-600 hover:text-brand-700 border border-paper-line hover:border-brand-600 px-3 py-1.5 rounded-sm transition">
-                                            Re-download
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    <div class="pt-4">
-                        {{ $histories->links() }}
-                    </div>
-                @else
-                    <div class="py-10 text-center text-ink-muted text-sm">
-                        No documents have been generated from this device yet.
-                    </div>
-                @endif
+                <div x-ref="historyContainer">
+                    @include('pages.partials.history')
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Overlay -->
+        <div x-show="isGenerating" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed inset-0 z-40 bg-ink/60 backdrop-blur-sm flex items-center justify-center" style="display: none;">
+
+            <div
+                class="bg-paper-card rounded-sm shadow-paper border border-paper-line p-8 max-w-sm w-full mx-4 text-center">
+                <!-- Spinner -->
+                <svg class="animate-spin h-8 w-8 text-brand-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                        stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+
+                <h3 class="font-serif text-base font-semibold text-ink mb-1">Generating Document</h3>
+                <p class="text-xs text-ink-muted">
+                    Processing <span x-text="files.length"></span> images. This may take a moment for large batches — feel
+                    free to keep this tab open.
+                </p>
             </div>
         </div>
     </div>

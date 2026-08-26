@@ -9,3 +9,4 @@ Route::post('/generate', [WordController::class, 'generate'])->name('word.genera
 Route::get('/generate/status/{jobId}', [WordController::class, 'status'])->name('word.status');
 Route::get('/generate/download/{jobId}', [WordController::class, 'jobDownload'])->name('word.job.download');
 Route::get('/history/{id}/download', [WordController::class, 'downloadHistory'])->name('history.download');
+Route::get('/history', [WordController::class, 'history'])->name('word.history');

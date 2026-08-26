@@ -12,8 +12,13 @@ use Illuminate\Support\Str;
 
 class WordController extends Controller
 {
-    public function index(Request $request, HistoryService $historyService)
-    {
+    /**
+     * Show main page.
+     */
+    public function index(
+        Request $request,
+        HistoryService $historyService
+    ) {
         $ownerToken = $request->cookie('owner_token');
 
         $histories = $ownerToken
@@ -23,10 +28,14 @@ class WordController extends Controller
         return view('pages.home', compact('histories'));
     }
 
+    /**
+     * Start document generation.
+     */
     public function generate(ImageToWordRequest $request)
     {
         $files = $request->file('images');
         $descriptions = $request->input('descriptions', []);
+
         $storedPaths = [];
 
         foreach ($files as $file) {
@@ -64,8 +73,13 @@ class WordController extends Controller
         ]);
     }
 
-    public function status(Request $request, string $jobId)
-    {
+    /**
+     * Check generation status.
+     */
+    public function status(
+        Request $request,
+        string $jobId
+    ) {
         $ownerToken = $request->cookie('owner_token');
 
         $job = GenerationJob::where('id', $jobId)
@@ -78,15 +92,56 @@ class WordController extends Controller
 
         return response()->json([
             'status' => $job->status,
+
             'download_url' => $job->status === 'completed'
                 ? route('word.job.download', $job->id)
                 : null,
+
             'error_message' => $job->error_message,
         ]);
     }
 
-    public function jobDownload(Request $request, string $jobId)
-    {
+    /**
+     * Refresh history dynamically.
+     *
+     * This does NOT reload the entire page.
+     */
+    public function history(
+        Request $request,
+        HistoryService $historyService
+    ) {
+        $ownerToken = $request->cookie('owner_token');
+
+        if (!$ownerToken) {
+            return response()->json([
+                'html' => '',
+                'current_page' => 1,
+                'last_page' => 1,
+            ]);
+        }
+
+        $histories = $historyService->getHistoryForOwner($ownerToken);
+
+        $html = view(
+            'pages.partials.history',
+            compact('histories')
+        )->render();
+
+        return response()->json([
+            'html' => $html,
+            'current_page' => $histories->currentPage(),
+            'last_page' => $histories->lastPage(),
+            'total' => $histories->total(),
+        ]);
+    }
+
+    /**
+     * Download generated document from job.
+     */
+    public function jobDownload(
+        Request $request,
+        string $jobId
+    ) {
         $ownerToken = $request->cookie('owner_token');
 
         $job = GenerationJob::where('id', $jobId)
@@ -118,13 +173,25 @@ class WordController extends Controller
     ) {
         $ownerToken = $request->cookie('owner_token');
 
-        $history = $historyService->findOwnedHistory(
+        $history = $historyService->findDownloadableHistory(
             $id,
             $ownerToken
         );
 
-        if (!$history || !Storage::exists($history->file_path)) {
-            abort(403, 'Access denied or document not found.');
+        if (
+            !$history ||
+            !Storage::exists($history->file_path)
+        ) {
+            $message =
+                'This document has expired and is no longer available.';
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'message' => $message,
+                ], 404);
+            }
+
+            abort(404, $message);
         }
 
         return response()->download(

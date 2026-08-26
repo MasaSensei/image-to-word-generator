@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\SimpleType\Jc;
@@ -92,8 +93,8 @@ class WordGeneratorService
     }
 
     /**
-     * Crop gambar ke rasio 4:3, ditulis ke temp lokal.
-     * Return path asli jika gagal (fallback aman, tidak mengubah aspect ratio original).
+     * Crop gambar ke rasio 4:3, ditulis ke temp lokal (storage/app/temp_images — writable & konsisten).
+     * Return path asli jika gagal (fallback aman).
      */
     private function cropTo4x3(string $sourcePath, string $extension): string
     {
@@ -130,11 +131,13 @@ class WordGeneratorService
             return $sourcePath;
         }
 
+        if ($mime === 'image/png') {
+            imagealphablending($img, false);
+            imagesavealpha($img, true);
+        }
+
         $cropped = imagecrop($img, [
-            'x'      => $x,
-            'y'      => $y,
-            'width'  => $cropWidth,
-            'height' => $cropHeight,
+            'x' => $x, 'y' => $y, 'width' => $cropWidth, 'height' => $cropHeight,
         ]);
 
         if ($cropped === false) {
@@ -142,16 +145,20 @@ class WordGeneratorService
             return $sourcePath;
         }
 
-        $tempCroppedPath = sys_get_temp_dir() . '/crop_' . Str::uuid() . '.' . $extension;
+        $relativePath = self::TEMP_DIR . '/crop_' . Str::uuid() . '.' . $extension;
+        $tempCroppedPath = Storage::path($relativePath);
 
-        if ($mime === 'image/png') {
-            imagepng($cropped, $tempCroppedPath);
-        } else {
-            imagejpeg($cropped, $tempCroppedPath, 85);
-        }
+        $written = $mime === 'image/png'
+            ? imagepng($cropped, $tempCroppedPath)
+            : imagejpeg($cropped, $tempCroppedPath, 85);
 
         imagedestroy($cropped);
         imagedestroy($img);
+
+        if (!$written || !is_file($tempCroppedPath) || filesize($tempCroppedPath) === 0) {
+            @unlink($tempCroppedPath);
+            return $sourcePath;
+        }
 
         return $tempCroppedPath;
     }
