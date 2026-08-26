@@ -105,6 +105,12 @@
 
                             <!-- Image Caption Form -->
                             <div class="p-3 border-t border-paper-line flex-1 flex flex-col justify-center">
+                                <div class="flex items-center gap-1.5 mb-1.5">
+                                    <span
+                                        class="inline-flex items-center justify-center w-5 h-5 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-600/30 rounded-full"
+                                        x-text="index + 1"></span>
+                                    <span class="text-[10px] text-ink-muted uppercase tracking-wider">Caption</span>
+                                </div>
                                 <textarea x-model="file.description" maxlength="150" rows="2" placeholder="Image caption (optional)..."
                                     class="w-full text-xs p-2 border border-paper-line rounded-sm focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 transition bg-paper resize-none"></textarea>
                                 <div class="text-right mt-1 text-[10px] text-ink-muted">
@@ -152,7 +158,7 @@
                                 <tr class="hover:bg-paper transition">
                                     <td class="py-3 font-medium text-ink">{{ $history->file_name }}</td>
                                     <td class="py-3">{{ $history->image_count }} Images</td>
-                                    <td class="py-3 text-ink-muted">{{ $history->created_at->format('d M Y, H:i') }}</td>
+                                    <td class="py-3 text-ink-muted">{{ $history->created_at->timezone('Asia/Jakarta')->format('d M Y, H:i') }}</td>
                                     <td class="py-3 text-right">
                                         <a href="{{ route('history.download', $history->id) }}"
                                             class="inline-flex items-center text-xs font-medium text-brand-600 hover:text-brand-700 border border-paper-line hover:border-brand-600 px-3 py-1.5 rounded-sm transition">

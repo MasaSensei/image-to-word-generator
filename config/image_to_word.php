@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'max_images' => 50,
-    'max_file_size' => 5120,
+    'max_images'    => 200,
+    'max_file_size' => 20480,
     'allowed_mimes' => 'jpeg,png,jpg',
 
     'word' => [

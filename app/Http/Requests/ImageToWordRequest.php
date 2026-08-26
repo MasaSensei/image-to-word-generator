@@ -28,11 +28,11 @@ class ImageToWordRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'images.required' => 'Minimal 1 gambar harus dipilih.',
-            'images.max' => 'Maksimal ' . config('image_to_word.max_images') . ' gambar yang diizinkan.',
-            'images.*.image' => 'File harus berupa dokumen gambar yang sah.',
-            'images.*.mimes' => 'Format tidak didukung. Gunakan ekstensi JPG, JPEG, atau PNG.',
-            'images.*.max' => 'Ukuran file terlalu besar. Batas maksimum adalah ' . (config('image_to_word.max_file_size') / 1024) . ' MB.',
+            'images.required' => 'Please select at least one image.',
+            'images.max' => 'You can upload a maximum of ' . config('image_to_word.max_images') . ' images.',
+            'images.*.image' => 'Each file must be a valid image.',
+            'images.*.mimes' => 'Unsupported format. Please use JPG, JPEG, or PNG.',
+            'images.*.max' => 'The file is too large. The maximum allowed size is ' . (config('image_to_word.max_file_size') / 1024) . ' MB.',
         ];
     }
 }

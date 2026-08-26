@@ -15,6 +15,21 @@ services:
     networks:
       - laravel_network
 
+  # Worker khusus untuk memproses job generate docx di background
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: php artisan queue:work --timeout=900 --tries=1 --sleep=3
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    networks:
+      - laravel_network
+
   mysql:
     image: mysql:8.0
     ports:
@@ -24,6 +39,17 @@ services:
       MYSQL_ROOT_PASSWORD: root
     volumes:
       - db_data:/var/lib/mysql
+    networks:
+      - laravel_network
+
+  # Admin DB ringan — image ~40MB (vs phpMyAdmin ~500MB+)
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
     networks:
       - laravel_network
 

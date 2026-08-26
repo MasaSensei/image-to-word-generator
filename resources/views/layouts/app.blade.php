@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Enterprise DocGen | Image to Word</title>
 
     <!-- Font: editorial serif for headings, grotesk for UI/body -->
